@@ -1506,8 +1506,7 @@ WriteBottomStatusLine:
       sta VRAM_Buffer1+3,x
       lda #$28                ;next the dash
       sta VRAM_Buffer1+4,x
-      ldy IntervalTimerControl ; show framerule counter instead of level
-      tya
+      lda IntervalTimerControl ; show framerule counter instead of level
       sta VRAM_Buffer1+5,x    
       lda #$00                ;put null terminator on
       sta VRAM_Buffer1+6,x
