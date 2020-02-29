@@ -4361,11 +4361,6 @@ GetBlockBufferAddr:
 
 ;-------------------------------------------------------------------------------------
 
-;unused space
-.ifdef Japan
-      .byte $ff, $ff
-.endif
-
 ;-------------------------------------------------------------------------------------
 
 AreaDataOfsLoopback:
@@ -5316,9 +5311,6 @@ L_WaterArea3:
       .byte $fd
 
 ;-------------------------------------------------------------------------------------
-
-;unused space
-      .byte $ff
 
 ;-------------------------------------------------------------------------------------
 
@@ -11325,15 +11317,6 @@ ExScrnBd: rts                     ;leave
 
 ;-------------------------------------------------------------------------------------
 
-;some unused space
-      .byte $ff, $ff, $ff
-.ifndef Japan
-      .byte $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
-      .byte $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
-      .byte $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
-      .byte $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
-.endif      
-
 ;-------------------------------------------------------------------------------------
 ;$01 - enemy buffer offset
 
@@ -15376,11 +15359,6 @@ SetHFAt: ora $04                    ;add other OAM attributes if necessary
 
 ;-------------------------------------------------------------------------------------
 
-;unused space
-.ifdef Japan
-        .byte $ff, $ff, $ff, $ff, $ff, $ff
-.endif
-
 ;-------------------------------------------------------------------------------------
 
 SoundEngine:
@@ -16644,13 +16622,6 @@ VictoryMusData:
 
       .byte $83, $12, $14, $04, $18, $1a, $1c, $14
       .byte $26, $22, $1e, $1c, $18, $1e, $22, $0c, $14
-
-;unused space
-.ifdef Japan
-      .byte $ff, $ff, $ff
-.else
-      .byte $ff, $ff
-.endif
 
 FreqRegLookupTbl:
 .ifdef BUILD_NTSC
