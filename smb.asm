@@ -7220,17 +7220,18 @@ RenderSockXForce:
       ldx VRAM_Buffer1_Offset
       bne RenderSockXForce_RTS
       lda #$20
-      sta VRAM_Buffer1
-      lda #$6D ;
-      sta VRAM_Buffer1+1
-      lda #2 ; len
-      sta VRAM_Buffer1+2
+      sta VRAM_Buffer1,x
+      lda #$6D
+      sta VRAM_Buffer1+1,x
+      lda #2
+      sta VRAM_Buffer1+2,x
       ldx #0
       lda Player_X_MoveForce
       jsr PrintHexByte
       lda #0
       sta VRAM_Buffer1+3,x
-      lda #$09
+      txa
+      adc #$03
       sta VRAM_Buffer1_Offset
 RenderSockXForce_RTS:
       rts
