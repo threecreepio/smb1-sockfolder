@@ -10740,6 +10740,7 @@ FireworksSoundScore:
       sta Enemy_Flag,x
       lda #Sfx_Blast         ;play fireworks/gunfire sound
       sta Square2SoundQueue
+      jmp UpdateNumber
 
 ;--------------------------------
 
