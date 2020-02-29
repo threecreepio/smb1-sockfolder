@@ -687,21 +687,10 @@ VBlank1:     lda PPU_STATUS               ;wait two frames
 VBlank2:     lda PPU_STATUS
              bpl VBlank2
              ldy #ColdBootOffset          ;load default cold boot pointer
-             ldx #$05                     ;this is where we check for a warm boot
-WBootCheck:  lda TopScoreDisplay,x        ;check each score digit in the top score
-             cmp #10                      ;to see if we have a valid digit
-             bcs ColdBoot                 ;if not, give up and proceed with cold boot
-             dex                      
-             bpl WBootCheck
-             lda WarmBootValidation       ;second checkpoint, check to see if 
-             cmp #$a5                     ;another location has a specific value
-             bne ColdBoot   
-             ldy #WarmBootOffset          ;if passed both, load warm boot pointer
 ColdBoot:    jsr InitializeMemory         ;clear memory using pointer in Y
              sta SND_DELTA_REG+1          ;reset delta counter load register
              sta OperMode                 ;reset primary mode of operation
              lda #$a5                     ;set warm boot flag
-             sta WarmBootValidation     
              sta PseudoRandomBitReg       ;set seed for pseudorandom register
              lda #%00001111
              sta SND_MASTERCTRL_REG       ;enable all sound channels except dmc
@@ -1316,8 +1305,6 @@ LoadNumTiles: lda ScoreUpdateData,y        ;load point value here
               tax                          ;use as X offset, essentially the digit
               lda ScoreUpdateData,y        ;load again and this time
               and #%00001111               ;mask out the high nybble
-              sta DigitModifier,x          ;store as amount to add to the digit
-              jsr AddToScore               ;update the score accordingly
 ChkTallEnemy: ldy Enemy_SprDataOffset,x    ;get OAM data offset for enemy object
               lda Enemy_ID,x               ;get enemy object identifier
               cmp #Spiny
@@ -1519,8 +1506,7 @@ WriteBottomStatusLine:
       sta VRAM_Buffer1+3,x
       lda #$28                ;next the dash
       sta VRAM_Buffer1+4,x
-      ldy LevelNumber         ;next the level number
-      iny                     ;increment for proper number display
+      ldy IntervalTimerControl ; show framerule counter instead of level
       tya
       sta VRAM_Buffer1+5,x    
       lda #$00                ;put null terminator on
@@ -1646,7 +1632,7 @@ TopStatusBarLine:
   .byte $20, $43, $05, $16, $0a, $1b, $12, $18 ; "MARIO"
   .byte $20, $52, $0b, $20, $18, $1b, $15, $0d ; "WORLD  TIME"
   .byte $24, $24, $1d, $12, $16, $0e
-  .byte $20, $68, $05, $00, $24, $24, $2e, $29 ; score trailing digit and coin display
+  .byte $20, $68, $05, $24, $24, $24, $2e, $29 ; score trailing digit and coin display
   .byte $23, $c0, $7f, $aa ; attribute table data, clears name table 0 to palette 2
   .byte $23, $c2, $01, $ea ; attribute table data, used for coin icon in status bar
   .byte $ff ; end of data block
@@ -2620,28 +2606,10 @@ CarryOne:   sec                       ;subtract ten from our digit to make it a
 ;-------------------------------------------------------------------------------------
 
 UpdateTopScore:
-      ldx #$05          ;start with mario's score
-      jsr TopScoreCheck
-      ldx #$0b          ;now do luigi's score
-
 TopScoreCheck:
-              ldy #$05                 ;start with the lowest digit
-              sec           
-GetScoreDiff: lda PlayerScoreDisplay,x ;subtract each player digit from each high score digit
-              sbc TopScoreDisplay,y    ;from lowest to highest, if any top score digit exceeds
-              dex                      ;any player digit, borrow will be set until a subsequent
-              dey                      ;subtraction clears it (player digit is higher than top)
-              bpl GetScoreDiff      
-              bcc NoTopSc              ;check to see if borrow is still set, if so, no new high score
-              inx                      ;increment X and Y once to the start of the score
-              iny
-CopyScore:    lda PlayerScoreDisplay,x ;store player's score digits into high score memory area
-              sta TopScoreDisplay,y
-              inx
-              iny
-              cpy #$06                 ;do this until we have stored them all
-              bcc CopyScore
-NoTopSc:      rts
+      rts
+
+
 
 ;-------------------------------------------------------------------------------------
 
@@ -2670,6 +2638,7 @@ InitializeArea:
                jsr InitializeMemory     ;this is only necessary if branching from
                ldx #$21
                lda #$00
+               sta SockTimer
 ClrTimersLoop: sta Timers,x             ;clear out memory between
                dex                      ;$0780 and $07a1
                bpl ClrTimersLoop
@@ -5585,6 +5554,7 @@ AutoControlPlayer:
       sta SavedJoypadBits         ;override controller bits with contents of A if executing here
 
 PlayerCtrlRoutine:
+      jsr CreateSockNumber
             lda GameEngineSubroutine    ;check task here
             cmp #$0b                    ;if certain value is set, branch to skip controller bit loading
             beq SizeChk
@@ -6734,8 +6704,6 @@ SkipScore: jmp FPGfx                 ;jump to skip ahead and draw flag and float
 GiveFPScr: ldy FlagpoleScore         ;get score offset from earlier (when player touched flagpole)
            lda FlagpoleScoreMods,y   ;get amount to award player points
            ldx FlagpoleScoreDigits,y ;get digit with which to award points
-           sta DigitModifier,x       ;store in digit modifier
-           jsr AddToScore            ;do sub to award player points depending on height of collision
            lda #$05
            sta GameEngineSubroutine  ;set to run end-of-level subroutine on next frame
 FPGfx:     jsr GetEnemyOffscreenBits ;get offscreen information
@@ -7233,43 +7201,121 @@ ScoreOffsets:
 StatusBarNybbles:
       .byte $02, $13
 
+
+SockTimer = $0900
+
+CreateSockNumber:
+      inc SockTimer
+      lda SockTimer
+      cmp #5
+      bne CSN_SkipHash
+      lda #0
+      sta SockTimer
+      jmp RenderSockHash
+CSN_SkipHash:
+      lsr a
+      bcc RenderSockXForce
+      rts
+
+RenderSockXForce:
+      ldx VRAM_Buffer1_Offset
+      bne RenderSockXForce_RTS
+      lda #$20
+      sta VRAM_Buffer1
+      lda #$6D ;
+      sta VRAM_Buffer1+1
+      lda #2 ; len
+      sta VRAM_Buffer1+2
+      ldx #0
+      lda Player_X_MoveForce
+      jsr PrintHexByte
+      lda #0
+      sta VRAM_Buffer1+3,x
+      lda #$09
+      sta VRAM_Buffer1_Offset
+RenderSockXForce_RTS:
+      rts
+
+RenderSockHash:
+      lda SprObject_X_MoveForce
+      sta $03
+      sta $04
+      lda Player_X_Position
+      sta $02
+      lda Player_PageLoc
+      sta $01
+      lda Player_Y_Position
+      eor #$FF
+      lsr a
+      lsr a
+      lsr a
+      bcc Sock1
+      pha
+      clc
+      lda #$80
+      adc $03
+      sta $03
+      lda $02
+      adc #$02
+      sta $02
+      lda $01
+      adc #$00
+      sta $01
+      pla
+Sock1:
+      sta $04
+      asl a
+      asl a
+      adc $04
+      adc $02
+      sta $02
+      lda $01
+      adc #$00
+      sta $01
+      ldx VRAM_Buffer1_Offset
+      bne SockSkip
+SockRender:
+      lda #$20
+      sta VRAM_Buffer1
+      lda #$62 ;
+      sta VRAM_Buffer1+1
+      lda #6 ; len
+      sta VRAM_Buffer1+2
+      ldx #0
+      lda $1
+      jsr PrintHexByte
+      lda $2
+      jsr PrintHexByte
+      lda $3
+      jsr PrintHexByte
+      lda #0
+      sta VRAM_Buffer1+3, x
+      lda #$09
+      sta VRAM_Buffer1_Offset
+SockSkip:
+      rts
+
+PrintHexByte:
+      sta $0
+      lsr
+      lsr
+      lsr
+      lsr
+      jsr DoNibble
+      lda $0
+DoNibble:
+      and #$0f
+      sta VRAM_Buffer1+3,x
+      inx
+      rts
+
+
+
 GiveOneCoin:
-      lda #$01               ;set digit modifier to add 1 coin
-      sta DigitModifier+5    ;to the current player's coin tally
-      ldx CurrentPlayer      ;get current player on the screen
-      ldy CoinTallyOffsets,x ;get offset for player's coin tally
-      jsr DigitsMathRoutine  ;update the coin tally
-      inc CoinTally          ;increment onscreen player's coin amount
-      lda CoinTally
-      cmp #100               ;does player have 100 coins yet?
-      bne CoinPoints         ;if not, skip all of this
-      lda #$00
-      sta CoinTally          ;otherwise, reinitialize coin amount
-      inc NumberofLives      ;give the player an extra life
-      lda #Sfx_ExtraLife
-      sta Square2SoundQueue  ;play 1-up sound
-
 CoinPoints:
-      lda #$02               ;set digit modifier to award
-      sta DigitModifier+4    ;200 points to the player
-
 AddToScore:
-      ldx CurrentPlayer      ;get current player
-      ldy ScoreOffsets,x     ;get offset for player's score
-      jsr DigitsMathRoutine  ;update the score internally with value in digit modifier
-
 GetSBNybbles:
-      ldy CurrentPlayer      ;get current player
-      lda StatusBarNybbles,y ;get nybbles based on player, use to update score and coins
-
 UpdateNumber:
-        jsr PrintStatusBarNumbers ;print status bar numbers based on nybbles, whatever they be
-        ldy VRAM_Buffer1_Offset   
-        lda VRAM_Buffer1-6,y      ;check highest digit of score
-        bne NoZSup                ;if zero, overwrite with space tile for zero suppression
-        lda #$24
-        sta VRAM_Buffer1-6,y
-NoZSup: ldx ObjectOffset          ;get enemy object buffer offset
         rts
 
 ;-------------------------------------------------------------------------------------
@@ -7540,8 +7586,6 @@ BrickShatter:
       jsr SpawnBrickChunks   ;create brick chunk objects
       lda #$fe
       sta Player_Y_Speed     ;set vertical speed for player
-      lda #$05
-      sta DigitModifier+5    ;set digit modifier to give player 50 points
       jsr AddToScore         ;do sub to update the score
       ldx SprDataOffset_Ctrl ;load control bit and leave
       rts
@@ -10696,9 +10740,6 @@ FireworksSoundScore:
       sta Enemy_Flag,x
       lda #Sfx_Blast         ;play fireworks/gunfire sound
       sta Square2SoundQueue
-      lda #$05               ;set part of score modifier for 500 points
-      sta DigitModifier+4
-      jmp EndAreaPoints     ;jump to award points accordingly then leave
 
 ;--------------------------------
 
@@ -10760,22 +10801,6 @@ NoTTick: ldy #$23               ;set offset here to subtract from game timer's l
          lda #$ff               ;set adder here to $ff, or -1, to subtract one
          sta DigitModifier+5    ;from the last digit of the game timer
          jsr DigitsMathRoutine  ;subtract digit
-         lda #$05               ;set now to add 50 points
-         sta DigitModifier+5    ;per game timer interval subtracted
-
-EndAreaPoints:
-         ldy #$0b               ;load offset for mario's score by default
-         lda CurrentPlayer      ;check player on the screen
-         beq ELPGive            ;if mario, do not change
-         ldy #$11               ;otherwise load offset for luigi's score
-ELPGive: jsr DigitsMathRoutine  ;award 50 points per game timer interval
-         lda CurrentPlayer      ;get player on the screen (or 500 points per
-         asl                    ;fireworks explosion if branched here from there)
-         asl                    ;shift to high nybble
-         asl
-         asl
-         ora #%00000100         ;add four to set nybble for game timer
-         jmp UpdateNumber       ;jump to print the new score and game timer
 
 RaiseFlagSetoffFWorks:
          lda Enemy_Y_Position,x  ;check star flag's vertical position
