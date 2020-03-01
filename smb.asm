@@ -1492,7 +1492,11 @@ WriteTopStatusLine:
 ;-------------------------------------------------------------------------------------
 
 WriteBottomStatusLine:
-      jsr GetSBNybbles        ;write player's score and coin tally to screen
+      jsr WriteBottomStatusLineSR
+      jmp IncSubtask
+
+WriteBottomStatusLineSR:
+      ;jsr GetSBNybbles        ;write player's score and coin tally to screen
       ldx VRAM_Buffer1_Offset
       lda #$20                ;write address for world-area number on screen
       sta VRAM_Buffer1,x
@@ -1514,7 +1518,7 @@ WriteBottomStatusLine:
       clc
       adc #$06
       sta VRAM_Buffer1_Offset
-      jmp IncSubtask
+      rts
 
 ;-------------------------------------------------------------------------------------
 
@@ -1619,8 +1623,6 @@ IncSubtask:  inc ScreenRoutineTask      ;move onto next task
 ;-------------------------------------------------------------------------------------
 
 WriteTopScore:
-               lda #$fa           ;run display routine to display top score on title
-               jsr UpdateNumber
 IncModeTask_B: inc OperMode_Task  ;move onto next mode
                rts
 
@@ -2297,20 +2299,13 @@ BowserPaletteData:
   .byte $00
 
 MarioThanksMessage:
-;"THANK YOU MARIO!"
-  .byte $25, $48, $10
+LuigiThanksMessage:
+;"THANK YOU!"
+  .byte $25, $48, $0A
   .byte $1d, $11, $0a, $17, $14, $24
-  .byte $22, $18, $1e, $24
-  .byte $16, $0a, $1b, $12, $18, $2b
+  .byte $22, $18, $1e, $24, $2b
   .byte $00
 
-LuigiThanksMessage:
-;"THANK YOU LUIGI!"
-  .byte $25, $48, $10
-  .byte $1d, $11, $0a, $17, $14, $24
-  .byte $22, $18, $1e, $24
-  .byte $15, $1e, $12, $10, $12, $2b
-  .byte $00
 
 MushroomRetainerSaved:
 ;"BUT OUR PRINCESS IS IN"
@@ -5551,7 +5546,6 @@ AutoControlPlayer:
       sta SavedJoypadBits         ;override controller bits with contents of A if executing here
 
 PlayerCtrlRoutine:
-      jsr CreateSockNumber
             lda GameEngineSubroutine    ;check task here
             cmp #$0b                    ;if certain value is set, branch to skip controller bit loading
             beq SizeChk
@@ -6530,7 +6524,7 @@ RunGameTimer:
            cmp #$02                   ;if player below the screen,
            bcs ExGTimer               ;branch to leave regardless of level type
            lda GameTimerCtrlTimer     ;if game timer control not yet expired,
-           bne ExGTimer               ;branch to leave
+           bne GTUpdateSockNumbers    ;branch to leave
            lda GameTimerDisplay
            ora GameTimerDisplay+1     ;otherwise check game timer digits
            ora GameTimerDisplay+2
@@ -6560,6 +6554,9 @@ TimeUpOn:  sta PlayerStatus           ;init player status (note A will always be
            jsr ForceInjury            ;do sub to kill the player (note player is small here)
            inc GameTimerExpiredFlag   ;set game timer expiration flag
 ExGTimer:  rts                        ;leave
+GTUpdateSockNumbers:
+      jsr UpdateSockNumbers
+      rts
 
 ;-------------------------------------------------------------------------------------
 
@@ -7201,7 +7198,7 @@ StatusBarNybbles:
 
 SockTimer = $0900
 
-CreateSockNumber:
+UpdateSockNumbers:
       inc SockTimer
       lda SockTimer
       cmp #5
@@ -7273,11 +7270,11 @@ Sock1:
       bne SockSkip
 SockRender:
       lda #$20
-      sta VRAM_Buffer1
+      sta VRAM_Buffer1,x
       lda #$62 ;
-      sta VRAM_Buffer1+1
+      sta VRAM_Buffer1+1,x
       lda #6 ; len
-      sta VRAM_Buffer1+2
+      sta VRAM_Buffer1+2,x
       ldx #0
       lda $1
       jsr PrintHexByte
@@ -7286,7 +7283,7 @@ SockRender:
       lda $3
       jsr PrintHexByte
       lda #0
-      sta VRAM_Buffer1+3, x
+      sta VRAM_Buffer1+3,x
       lda #$09
       sta VRAM_Buffer1_Offset
 SockSkip:
@@ -7310,7 +7307,16 @@ GiveOneCoin:
 CoinPoints:
 AddToScore:
 GetSBNybbles:
+      rts
+
 UpdateNumber:
+        jsr PrintStatusBarNumbers ;print status bar numbers based on nybbles, whatever they be
+        ldy VRAM_Buffer1_Offset   
+        lda VRAM_Buffer1-6,y      ;check highest digit of score
+        bne NoZSup                ;if zero, overwrite with space tile for zero suppression
+        lda #$24
+        sta VRAM_Buffer1-6,y
+NoZSup: ldx ObjectOffset          ;get enemy object buffer offset
         rts
 
 ;-------------------------------------------------------------------------------------
@@ -10797,6 +10803,8 @@ NoTTick: ldy #$23               ;set offset here to subtract from game timer's l
          lda #$ff               ;set adder here to $ff, or -1, to subtract one
          sta DigitModifier+5    ;from the last digit of the game timer
          jsr DigitsMathRoutine  ;subtract digit
+         lda #4
+         jmp UpdateNumber
 
 RaiseFlagSetoffFWorks:
          lda Enemy_Y_Position,x  ;check star flag's vertical position
@@ -10841,6 +10849,7 @@ DrawFlagSetTimer:
       sta EnemyIntervalTimer,x  ;set interval timer here
 
 IncrementSFTask2:
+      jsr WriteBottomStatusLineSR
       inc StarFlagTaskControl   ;move onto next task
       rts
 
