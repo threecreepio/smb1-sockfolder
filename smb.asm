@@ -2608,8 +2608,6 @@ UpdateTopScore:
 TopScoreCheck:
       rts
 
-
-
 ;-------------------------------------------------------------------------------------
 
 DefaultSprOffsets:
@@ -7225,7 +7223,6 @@ RenderSockXForce:
       sta VRAM_Buffer1+1,x
       lda #2
       sta VRAM_Buffer1+2,x
-      ldx #0
       lda Player_X_MoveForce
       jsr PrintHexByte
       lda #0
@@ -7308,8 +7305,6 @@ DoNibble:
       sta VRAM_Buffer1+3,x
       inx
       rts
-
-
 
 GiveOneCoin:
 CoinPoints:
